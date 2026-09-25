@@ -1,53 +1,76 @@
 import { useState } from "react";
 import { sendMessage } from "./services/api/chat";
+import { ChatWindow } from "./components/chat/ChatWindow";
+import { ChatInput } from "./components/chat/ChatInput";
+import type { ChatMessage } from "./types/chat";
 import "./App.css";
 
 function App() {
-  const [message, setMessage] = useState("");
-  const [response, setResponse] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const handleSend = async () => {
-    if (!message.trim() || loading) return;
+  const handleSend = async (content: string) => {
+    const userMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content,
+      timestamp: new Date(),
+    };
 
+    setMessages((previous) => [...previous, userMessage]);
     setLoading(true);
 
     try {
-      const data = await sendMessage({
+      const response = await sendMessage({
         conversation_id: "test-123",
-        message,
+        message: content,
       });
 
-      setResponse(data.message);
-      setMessage("");
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: response.message,
+        timestamp: new Date(),
+      };
+
+      setMessages((previous) => [...previous, assistantMessage]);
     } catch (error) {
       console.error(error);
-      setResponse("Unable to connect to JARVIS.");
+
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: "Unable to connect to JARVIS.",
+          timestamp: new Date(),
+        },
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main>
-      <h1>J.A.R.V.I.S.</h1>
+    <main className="jarvis">
+      <header className="jarvis-header">
+        <h1 className="jarvis-title">J.A.R.V.I.S.</h1>
 
-      <input
-        value={message}
-        onChange={(event) => setMessage(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            handleSend();
-          }
-        }}
-        placeholder="Ask JARVIS..."
-      />
+        <div className="jarvis-status">
+          <span className="status-dot" />
+          ONLINE
+        </div>
+      </header>
 
-      <button onClick={handleSend} disabled={loading}>
-        {loading ? "Thinking..." : "Send"}
-      </button>
+      <ChatWindow messages={messages} />
 
-      {response && <p>{response}</p>}
+      {loading && (
+        <div className="jarvis-status">
+          JARVIS IS THINKING...
+        </div>
+      )}
+
+      <ChatInput onSend={handleSend} disabled={loading} />
     </main>
   );
 }
