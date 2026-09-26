@@ -2,12 +2,20 @@ import { useState } from "react";
 import { sendMessage } from "./services/api/chat";
 import { ChatWindow } from "./components/chat/ChatWindow";
 import { ChatInput } from "./components/chat/ChatInput";
+import { EmptyChat } from "./components/chat/EmptyChat";
+import {
+  AssistantStatus,
+  type AssistantStatusType,
+} from "./components/status/AssistantStatus";
+import { VoiceButton } from "./components/voice/VoiceButton";
+import { VoiceVisualizer } from "./components/voice/VoiceVisualizer";
 import type { ChatMessage } from "./types/chat";
 import "./App.css";
 
 function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<AssistantStatusType>("idle");
+  const [listening, setListening] = useState(false);
 
   const handleSend = async (content: string) => {
     const userMessage: ChatMessage = {
@@ -18,7 +26,7 @@ function App() {
     };
 
     setMessages((previous) => [...previous, userMessage]);
-    setLoading(true);
+    setStatus("thinking");
 
     try {
       const response = await sendMessage({
@@ -34,8 +42,10 @@ function App() {
       };
 
       setMessages((previous) => [...previous, assistantMessage]);
+      setStatus("idle");
     } catch (error) {
       console.error(error);
+      setStatus("error");
 
       setMessages((previous) => [
         ...previous,
@@ -46,31 +56,48 @@ function App() {
           timestamp: new Date(),
         },
       ]);
-    } finally {
-      setLoading(false);
     }
+  };
+
+  const handleVoice = () => {
+    setListening((previous) => !previous);
+    setStatus(listening ? "idle" : "listening");
   };
 
   return (
     <main className="jarvis">
       <header className="jarvis-header">
-        <h1 className="jarvis-title">J.A.R.V.I.S.</h1>
-
-        <div className="jarvis-status">
-          <span className="status-dot" />
-          ONLINE
+        <div>
+          <h1 className="jarvis-title">J.A.R.V.I.S.</h1>
+          <span className="jarvis-subtitle">
+            JUST A RATHER VERY INTELLIGENT SYSTEM
+          </span>
         </div>
+
+        <AssistantStatus status={status} />
       </header>
 
-      <ChatWindow messages={messages} />
+      <section className="assistant-area">
+        {messages.length === 0 ? (
+          <EmptyChat />
+        ) : (
+          <ChatWindow messages={messages} />
+        )}
 
-      {loading && (
-        <div className="jarvis-status">
-          JARVIS IS THINKING...
-        </div>
-      )}
+        <VoiceVisualizer active={listening} />
+      </section>
 
-      <ChatInput onSend={handleSend} disabled={loading} />
+      <footer className="chat-footer">
+        <ChatInput
+          onSend={handleSend}
+          disabled={status === "thinking"}
+        />
+
+        <VoiceButton
+          listening={listening}
+          onClick={handleVoice}
+        />
+      </footer>
     </main>
   );
 }
