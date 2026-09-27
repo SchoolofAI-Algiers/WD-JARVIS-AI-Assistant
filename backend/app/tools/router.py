@@ -1,5 +1,6 @@
 from app.tools.calculator import calculator
 from app.tools.datetime import datetime_tool
+from app.tools.weather import weather_tool
 
 
 class ToolRouter:
@@ -61,6 +62,21 @@ class ToolRouter:
         ):
             return "datetime"
 
+        weather_keywords = [
+            "weather",
+            "temperature",
+            "forecast",
+            "rain",
+            "sunny",
+            "cloudy",
+        ]
+
+        if any(
+            keyword in lower_message
+            for keyword in weather_keywords
+        ):
+            return "weather"
+
         return None
 
     def execute(
@@ -84,6 +100,16 @@ class ToolRouter:
 
             return {
                 "tool": "datetime",
+                "result": result,
+            }
+
+        if tool_name == "weather":
+            city = self._extract_city(message)
+
+            result = weather_tool.get_weather(city)
+
+            return {
+                "tool": "weather",
                 "result": result,
             }
 
@@ -128,6 +154,23 @@ class ToolRouter:
         )
 
         return expression.strip()
+
+    def _extract_city(self, message: str) -> str:
+        lower_message = message.lower().strip()
+
+        prefixes = [
+            "what's the weather in ",
+            "what is the weather in ",
+            "weather in ",
+            "temperature in ",
+            "forecast in ",
+        ]
+
+        for prefix in prefixes:
+            if lower_message.startswith(prefix):
+                return message[len(prefix):].strip()
+
+        return "Algiers"
 
 
 tool_router = ToolRouter()

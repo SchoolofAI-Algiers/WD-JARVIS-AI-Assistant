@@ -1,5 +1,6 @@
 from app.memory.conversation import conversation_memory
 from app.tools.router import tool_router
+from app.tools.weather import weather_tool
 
 
 class Assistant:
@@ -119,6 +120,21 @@ class Assistant:
                 f"{datetime_result['date']}. "
                 f"Current UTC time: "
                 f"{datetime_result['time']}."
+            )
+
+        if tool_result["tool"] == "weather":
+            weather = tool_result["result"]
+
+            description = weather_tool.describe_weather_code(
+                weather["weather_code"]
+            )
+
+            return (
+                f"Weather in {weather['city']}: "
+                f"{description}, "
+                f"{weather['temperature']}°C, "
+                f"humidity {weather['humidity']}%, "
+                f"wind {weather['wind_speed']} km/h."
             )
 
         return "The tool completed successfully."
