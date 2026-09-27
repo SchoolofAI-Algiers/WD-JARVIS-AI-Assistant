@@ -8,24 +8,36 @@ interface Props {
 }
 
 export function SourceList({ sources }: Props) {
-  if (!sources.length) return null;
+  if (sources.length === 0) {
+    return null;
+  }
 
   return (
     <div className="source-list">
-      <span className="source-title">SOURCES</span>
+      <div className="source-title">SOURCES</div>
 
-      {sources.map((source) => (
-        <div key={source.title} className="source">
-          <span>◈</span>
-          {source.url ? (
-            <a href={source.url} target="_blank" rel="noreferrer">
-              {source.title}
-            </a>
-          ) : (
-            <span>{source.title}</span>
-          )}
-        </div>
-      ))}
+      <div className="source-items">
+        {sources.map((source, index) => (
+          <div
+            key={`${source.title}-${index}`}
+            className="source"
+          >
+            <span className="source-icon">◈</span>
+
+            {source.url ? (
+              <a
+                href={source.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {source.title}
+              </a>
+            ) : (
+              <span>{source.title}</span>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

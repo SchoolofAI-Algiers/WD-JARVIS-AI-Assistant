@@ -9,7 +9,9 @@ export function ChatInput({ onSend, disabled }: Props) {
   const [value, setValue] = useState("");
 
   const handleSubmit = () => {
-    if (!value.trim() || disabled) return;
+    if (!value.trim() || disabled) {
+      return;
+    }
 
     onSend(value.trim());
     setValue("");
@@ -25,12 +27,19 @@ export function ChatInput({ onSend, disabled }: Props) {
             handleSubmit();
           }
         }}
-        placeholder="Ask JARVIS..."
+        placeholder={
+          disabled
+            ? "JARVIS is processing..."
+            : "Ask JARVIS..."
+        }
         disabled={disabled}
       />
 
-      <button onClick={handleSubmit} disabled={disabled}>
-        Send
+      <button
+        onClick={handleSubmit}
+        disabled={disabled || !value.trim()}
+      >
+        {disabled ? "..." : "Send"}
       </button>
     </div>
   );
