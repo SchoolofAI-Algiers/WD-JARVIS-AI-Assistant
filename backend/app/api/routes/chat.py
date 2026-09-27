@@ -1,28 +1,22 @@
 from fastapi import APIRouter
-from pydantic import BaseModel
+
+from app.core.assistant import assistant
+from app.models.chat import ChatRequest, ChatResponse
+
 
 router = APIRouter()
 
 
-class ChatRequest(BaseModel):
-    conversation_id: str
-    message: str
-
-
-class ChatResponse(BaseModel):
-    conversation_id: str
-    status: str
-    message: str
-    metadata: dict
-
-
 @router.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
+def chat(request: ChatRequest) -> ChatResponse:
+    result = assistant.process(
+        conversation_id=request.conversation_id,
+        message=request.message,
+    )
+
     return ChatResponse(
         conversation_id=request.conversation_id,
         status="complete",
-        message=f"JARVIS received: {request.message}",
-        metadata={
-            "type": "mock"
-        }
+        message=result["message"],
+        metadata=result["metadata"],
     )
