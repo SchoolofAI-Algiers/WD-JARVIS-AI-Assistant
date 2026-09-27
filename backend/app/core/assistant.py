@@ -1,4 +1,5 @@
 from app.memory.conversation import conversation_memory
+from app.tools.router import tool_router
 
 
 class Assistant:
@@ -11,10 +12,41 @@ class Assistant:
             conversation_id
         )
 
-        response = self._generate_response(
-            message=message,
-            previous_messages=previous_messages,
-        )
+        tool_name = tool_router.detect_tool(message)
+
+        if tool_name:
+            try:
+                tool_result = tool_router.execute(
+                    tool_name=tool_name,
+                    message=message,
+                )
+
+                response = self._format_tool_response(
+                    tool_result
+                )
+
+                metadata = {
+                    "type": "tool",
+                    "tool": tool_result["tool"],
+                }
+
+            except Exception as error:
+                response = f"I couldn't calculate that: {error}"
+
+                metadata = {
+                    "type": "error",
+                    "tool": tool_name,
+                }
+
+        else:
+            response = self._generate_response(
+                message=message,
+                previous_messages=previous_messages,
+            )
+
+            metadata = {
+                "type": "mock",
+            }
 
         conversation_memory.add_message(
             conversation_id=conversation_id,
@@ -30,9 +62,7 @@ class Assistant:
 
         return {
             "message": response,
-            "metadata": {
-                "type": "mock",
-            },
+            "metadata": metadata,
         }
 
     def _generate_response(
@@ -65,6 +95,21 @@ class Assistant:
             return "Hello. How can I assist you?"
 
         return f"JARVIS received: {message}"
+
+    def _format_tool_response(
+        self,
+        tool_result: dict,
+    ) -> str:
+        if tool_result["tool"] == "calculator":
+            expression = tool_result["expression"]
+            result = tool_result["result"]
+
+            if isinstance(result, float) and result.is_integer():
+                result = int(result)
+
+            return f"{expression} = {result}"
+
+        return "The tool completed successfully."
 
 
 assistant = Assistant()
