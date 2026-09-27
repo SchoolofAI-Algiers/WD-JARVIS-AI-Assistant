@@ -1,4 +1,5 @@
 from app.tools.calculator import calculator
+from app.tools.datetime import datetime_tool
 
 
 class ToolRouter:
@@ -26,11 +27,39 @@ class ToolRouter:
         ):
             return "calculator"
 
-        if any(
-            operator in message
-            for operator in ["+", "-", "*", "×", "/", "÷", "%"]
-        ) and any(char.isdigit() for char in message):
+        if (
+            any(
+                operator in message
+                for operator in [
+                    "+",
+                    "-",
+                    "*",
+                    "×",
+                    "/",
+                    "÷",
+                    "%",
+                ]
+            )
+            and any(char.isdigit() for char in message)
+        ):
             return "calculator"
+
+        datetime_keywords = [
+            "what time is it",
+            "what's the time",
+            "what is the time",
+            "current time",
+            "current date",
+            "what date is it",
+            "what's today's date",
+            "today's date",
+        ]
+
+        if any(
+            keyword in lower_message
+            for keyword in datetime_keywords
+        ):
+            return "datetime"
 
         return None
 
@@ -48,6 +77,14 @@ class ToolRouter:
                 "tool": "calculator",
                 "result": result,
                 "expression": expression,
+            }
+
+        if tool_name == "datetime":
+            result = datetime_tool.get_current_datetime()
+
+            return {
+                "tool": "datetime",
+                "result": result,
             }
 
         raise ValueError(

@@ -31,7 +31,9 @@ class Assistant:
                 }
 
             except Exception as error:
-                response = f"I couldn't calculate that: {error}"
+                response = (
+                    f"I couldn't process that request: {error}"
+                )
 
                 metadata = {
                     "type": "error",
@@ -108,6 +110,16 @@ class Assistant:
                 result = int(result)
 
             return f"{expression} = {result}"
+
+        if tool_result["tool"] == "datetime":
+            datetime_result = tool_result["result"]
+
+            return (
+                f"Current UTC date: "
+                f"{datetime_result['date']}. "
+                f"Current UTC time: "
+                f"{datetime_result['time']}."
+            )
 
         return "The tool completed successfully."
 
