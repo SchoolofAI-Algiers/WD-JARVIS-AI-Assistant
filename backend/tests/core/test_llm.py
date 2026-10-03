@@ -4,7 +4,7 @@ import random
 llm_client = LLMClient()
 
 # generate a response from the LLM client
-def temporary_test(prompt: str) -> None:
+def test_prompt(prompt: str) -> None:
     """Temporarily generate a response for a supplied prompt."""
     print()
     print("PROMPT:")
@@ -31,4 +31,4 @@ prompts = [
     "I want to meet other students who are serious about AI and actually build things together. How do I become part of the School of AI Algiers community and make that happen?",
 ]
 
-temporary_test(random.choice(prompts))
+test_prompt(random.choice(prompts))
