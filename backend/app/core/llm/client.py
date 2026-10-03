@@ -127,6 +127,9 @@ class LLMClient:
             max_output_tokens=max_output_tokens,
             response_mime_type="text/plain",
             system_instruction=system_instruction,
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                disable=True
+            ),
         )
         return self._gemini.models.generate_content(
             model=provider.model,

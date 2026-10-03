@@ -3,11 +3,18 @@ import random
 
 llm_client = LLMClient()
 
-
 # generate a response from the LLM client
 def temporary_test(prompt: str) -> None:
     """Temporarily generate a response for a supplied prompt."""
+    print()
+    print("PROMPT:")
+    print("--------------------------------------------------------------")
+    print(prompt)
+    print("--------------------------------------------------------------\n")
+    print("LLM OUTPUT:")
+    print("--------------------------------------------------------------")
     print(llm_client.generate(prompt))
+    print("--------------------------------------------------------------\n")
 
 
 # pick a random prompt and test the LLM client
