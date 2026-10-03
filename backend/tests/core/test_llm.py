@@ -1,34 +1,59 @@
-from app.core.llm.client import LLMClient
-import random
+from __future__ import annotations
 
-llm_client = LLMClient()
+import sys
 
-# generate a response from the LLM client
-def test_prompt(prompt: str) -> None:
-    """Temporarily generate a response for a supplied prompt."""
-    print()
-    print("PROMPT:")
-    print("--------------------------------------------------------------")
-    print(prompt)
-    print("--------------------------------------------------------------\n")
-    print("LLM OUTPUT:")
-    print("--------------------------------------------------------------")
-    print(llm_client.generate(prompt))
-    print("--------------------------------------------------------------\n")
+from app.core.llm.client import LLMError
+from app.core.llm.service import LLMService
+from app.memory.conversation import ConversationMemory
 
 
-# pick a random prompt and test the LLM client
-prompts = [
-    "I'm a university student with zero AI background but a lot of curiosity. What's the most realistic path for me to start learning with the School of AI Algiers and actually stick with it?",
-    "What does an active member of the School of AI Algiers student community actually do week to week — study groups, projects, mentorship, or something else entirely?",
-    "I keep starting AI courses and quitting halfway. How does the School of AI Algiers community help students stay consistent and accountable?",
-    "If I join the School of AI Algiers as a student, what's the fastest way to go from passive learner to contributing to a real project with others?",
-    "I want to build a portfolio that actually impresses people. Does the School of AI Algiers community support student projects, and how do I get involved in one?",
-    "What skills should I focus on first as a student joining the School of AI Algiers so I don't waste months going in the wrong direction?",
-    "How do students in the School of AI Algiers community find mentors or study partners who are at a similar level and share the same goals?",
-    "I'm overwhelmed by all the AI resources online. How does the School of AI Algiers community help students cut through the noise and follow a clear path?",
-    "What's expected of a new student in the School of AI Algiers community, and what can I realistically expect to get out of it in the first three months?",
-    "I want to meet other students who are serious about AI and actually build things together. How do I become part of the School of AI Algiers community and make that happen?",
-]
+def run_manual_chat() -> None:
+    """Run an interactive chat through the real LLM service."""
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
 
-test_prompt(random.choice(prompts))
+    memory = ConversationMemory()
+    service = LLMService(memory=memory)
+    conversation_id = "manual-system-prompt-test"
+
+    print("Manual LLM service test")
+    print("The system prompt is supplied internally by LLMService.")
+    print("Conversation history is preserved between messages.")
+    print("Commands: /clear starts a new conversation, /exit quits.\n")
+
+    while True:
+        try:
+            message = input("You: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nExiting.")
+            return
+
+        if not message:
+            continue
+
+        if message == "/exit":
+            print("Exiting.")
+            return
+
+        if message == "/clear":
+            memory.clear(conversation_id)
+            print("Conversation history cleared.\n")
+            continue
+
+        try:
+            response = service.generate_response(
+                conversation_id=conversation_id,
+                message=message,
+            )
+        except LLMError as error:
+            print(f"ERROR: {error}")
+            print("Check your API keys and provider connectivity.\n")
+            continue
+
+        print(f"J.A.R.V.I.S.: {response}\n")
+        memory.add_message(conversation_id, "user", message)
+        memory.add_message(conversation_id, "assistant", response)
+
+
+if __name__ == "__main__":
+    run_manual_chat()

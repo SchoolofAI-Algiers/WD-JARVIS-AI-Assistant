@@ -12,9 +12,9 @@ from google.genai import types
 from groq import Groq
 from groq.types.chat import ChatCompletionMessageParam
 
-PRIMARY_MODEL = "gemini-3.8-flash"
+PRIMARY_MODEL = "openai/gpt-oss-120b"
 FIRST_FALLBACK_MODEL = "gemini-3.5-flash-lite"
-SECOND_FALLBACK_MODEL = "openai/gpt-oss-120b"
+SECOND_FALLBACK_MODEL = "gemini-3.8-flash"
 
 
 class LLMError(RuntimeError):
@@ -28,13 +28,13 @@ class _Provider:
 
 
 class LLMClient:
-    """Generate text using Gemini first, then Gemini Lite and Groq."""
+    """Generate text using the configured ordered provider fallbacks."""
 
-    _gemini_providers = (
-        _Provider("gemini", PRIMARY_MODEL),
-        _Provider("gemini-fallback", FIRST_FALLBACK_MODEL),
+    _providers = (
+        _Provider("primary", PRIMARY_MODEL),
+        _Provider("first-fallback", FIRST_FALLBACK_MODEL),
+        _Provider("second-fallback", SECOND_FALLBACK_MODEL),
     )
-    _groq_provider = _Provider("groq", SECOND_FALLBACK_MODEL)
 
     def __init__(
         self,
@@ -66,29 +66,27 @@ class LLMClient:
 
         errors: list[str] = []
 
-        for provider in self._gemini_providers:
+        for provider in self._providers:
             try:
-                response = self._generate_gemini(
-                    provider,
-                    prompt,
-                    system_instruction,
-                    temperature,
-                    max_output_tokens,
-                )
+                if self._is_gemini_model(provider.model):
+                    response = self._generate_gemini(
+                        provider,
+                        prompt,
+                        system_instruction,
+                        temperature,
+                        max_output_tokens,
+                    )
+                else:
+                    response = self._generate_groq(
+                        provider,
+                        prompt,
+                        system_instruction,
+                        temperature,
+                        max_output_tokens,
+                    )
                 return self._require_text(response, provider.name)
             except Exception as error:
                 errors.append(f"{provider.name}: {error}")
-
-        try:
-            response = self._generate_groq(
-                prompt,
-                system_instruction,
-                temperature,
-                max_output_tokens,
-            )
-            return self._require_text(response, self._groq_provider.name)
-        except Exception as error:
-            errors.append(f"{self._groq_provider.name}: {error}")
 
         detail = "; ".join(errors)
         raise LLMError(f"all LLM providers failed: {detail}")
@@ -139,6 +137,7 @@ class LLMClient:
 
     def _generate_groq(
         self,
+        provider: _Provider,
         prompt: str,
         system_instruction: str | None,
         temperature: float,
@@ -155,11 +154,15 @@ class LLMClient:
         messages.append({"role": "user", "content": prompt})
 
         return self._groq.chat.completions.create(
-            model=self._groq_provider.model,
+            model=provider.model,
             messages=messages,
             temperature=temperature,
             max_tokens=max_output_tokens,
         )
+
+    @staticmethod
+    def _is_gemini_model(model: str) -> bool:
+        return model.startswith("gemini")
 
     @staticmethod
     def _require_text(response: Any, provider_name: str) -> str:
