@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Iterable, Sequence
+from typing import Iterable, Sequence, cast
 
 from app.rag.models import Chunk
 
@@ -144,6 +144,39 @@ class WeaviateStore:
         for uid in stale:
             col.data.delete_by_id(uid)
         return len(stale)
+
+    # ------ reads -------------------------------------------------------------
+    def search(self, query: str, vector: list[float], limit: int,
+               alpha: float) -> list[tuple[Chunk, list[float]]]:
+        """Hybrid search (keywords + meaning). Returns (chunk, stored vector) pairs."""
+        from weaviate.classes.query import HybridFusion
+
+        res = self.collection.query.hybrid(
+            query=query,
+            vector=vector,
+            alpha=alpha,
+            limit=limit,
+            fusion_type=HybridFusion.RELATIVE_SCORE,
+            query_properties=["title^2", "section^2", "text"],  # titles count double for keywords
+            include_vector=True,
+        )
+        results = []
+        for obj in res.objects:
+            p = dict(obj.properties)
+            chunk = Chunk(
+                id=str(p["chunk_id"]),
+                text=str(p.get("text") or ""),
+                title=str(p.get("title") or ""),
+                section=str(p.get("section") or "") or None,
+                source=str(p.get("source") or ""),
+                category=str(p.get("category") or "") or None,
+                lang=str(p.get("lang") or "") or None,
+                updated=str(p.get("updated") or "") or None,
+                doc_path=str(p.get("doc_path") or ""),
+            )
+            stored_vector = cast(list[float], obj.vector["default"])
+            results.append((chunk, list(stored_vector)))
+        return results
 
     def count(self) -> int:
         return int(self.collection.aggregate.over_all(total_count=True).total_count or 0)

@@ -19,3 +19,7 @@ class Chunk(BaseModel):
     def heading(self) -> str:
         """'Title › Section', used as context for embeddings and display."""
         return f"{self.title} › {self.section}" if self.section else self.title
+
+
+class RetrievedChunk(Chunk):
+    similarity: float  # cosine similarity with the question

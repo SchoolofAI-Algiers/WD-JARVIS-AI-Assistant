@@ -96,6 +96,7 @@ class SentenceTransformerEmbedder:
 
     def _encode(self, texts: list[str], extra: tuple[tuple[str, Any], ...]) -> list[list[float]]:
         kwargs: dict[str, Any] = dict(self.preset.encode_kwargs) | dict(extra)
+        kwargs.setdefault("prompt", "") 
         vectors = self.model.encode(texts, normalize_embeddings=True, convert_to_numpy=True,
                                     show_progress_bar=False, **kwargs)
         return [v.astype(float).tolist() for v in vectors]

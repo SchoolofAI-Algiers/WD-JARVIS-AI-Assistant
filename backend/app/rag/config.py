@@ -39,6 +39,10 @@ class RAGSettings:
     embedding_device: str = "cpu"
     hf_token: str | None = None
 
+    # --- Retrieval ------------------------------------------------------
+    top_k: int = 3  # number of chunks given to the LLM
+    alpha: float = 0.5  # hybrid search: 0 = keywords only, 1 = meaning (vectors) only
+    min_similarity: float = 0.35  # below this, a chunk is "not relevant" (calibrate with test_retriever.py)
 
     # --- Knowledge base -------------------------------------------------
     knowledge_dir: Path = field(default_factory=lambda: REPO_ROOT / "knowledge" / "processed")
@@ -59,6 +63,9 @@ class RAGSettings:
             embedding_dim=int(_env("RAG_EMBEDDING_DIM", str(d.embedding_dim)) or str(d.embedding_dim)),
             embedding_device=_env("RAG_EMBEDDING_DEVICE", d.embedding_device) or d.embedding_device,
             hf_token=_env("HF_TOKEN"),
+            top_k=int(_env("RAG_TOP_K", str(d.top_k)) or str(d.top_k)),
+            alpha=float(_env("RAG_ALPHA", str(d.alpha)) or str(d.alpha)),
+            min_similarity=float(_env("RAG_MIN_SIMILARITY", str(d.min_similarity)) or str(d.min_similarity)),
             knowledge_dir=Path(_env("RAG_KNOWLEDGE_DIR", str(d.knowledge_dir)) or str(d.knowledge_dir)),
             max_chunk_words=int(_env("RAG_MAX_CHUNK_WORDS", str(d.max_chunk_words)) or str(d.max_chunk_words)),
         )
