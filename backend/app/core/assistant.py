@@ -137,6 +137,33 @@ class Assistant:
                 f"wind {weather['wind_speed']} km/h."
             )
 
+        if tool_result["tool"] == "reminders":
+            result = tool_result["result"]
+            if isinstance(result, list):
+                return f"You have {len(result)} pending reminder(s)."
+            if "completed" in result:
+                return "Reminder marked complete." if result["completed"] else "I couldn't find that reminder."
+            due = f" for {result['due_at']}" if result.get("due_at") else ""
+            return f"Reminder created{due}: {result['text']}"
+
+        if tool_result["tool"] == "notes":
+            result = tool_result["result"]
+            if isinstance(result, list):
+                return f"Found {len(result)} note(s)."
+            return "Note saved."
+
+        if tool_result["tool"] == "schedule":
+            result = tool_result["result"]
+            return f"You have {len(result)} event(s) on {tool_result['date']}."
+
+        if tool_result["tool"] == "workspace":
+            result = tool_result["result"]
+            if result["action"] == "application":
+                return f"Opened {result['name']}."
+            if result["action"] == "url":
+                return f"Opened {result['url']}."
+            return "Workspace opened."
+
         return "The tool completed successfully."
 
 
