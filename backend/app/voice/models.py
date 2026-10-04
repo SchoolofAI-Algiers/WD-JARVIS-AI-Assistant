@@ -195,7 +195,7 @@ class VoiceConfig(BaseModel):
 
     # speech-to-text
     stt_model_size: str = "base"  # tiny / base / small / medium ; benchmark on the event laptop
-    stt_device: str = "auto"
+    stt_device: str = "cpu"
     stt_compute_type: str = "int8"
     stt_language: Optional[str] = None  
     stt_min_confidence: float = Field(default=0.40, ge=0.0, le=1.0)
