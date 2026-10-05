@@ -69,7 +69,6 @@ class SentenceTransformerEmbedder:
             with self._lock:
                 if self._model is None:
                     from sentence_transformers import SentenceTransformer
-
                     logger.info("Loading embedding model %s ...", self.name)
                     self._model = SentenceTransformer(
                         self.name,

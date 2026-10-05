@@ -103,7 +103,7 @@ class WeaviateStore:
             name,
             description=signature,
             vector_config=Configure.Vectors.self_provided(
-                vector_index_config=Configure.VectorIndex.flat(distance_metric=VectorDistances.COSINE),
+                vector_index_config=Configure.VectorIndex.hfresh(distance_metric=VectorDistances.COSINE),
             ),
             properties=[
                 keyword("chunk_id"),
