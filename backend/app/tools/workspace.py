@@ -32,8 +32,22 @@ class WorkspaceTool:
         return {"action": "workspace", "path": str(target)}
 
     def open_url(self, url: str) -> dict:
-        parsed = urlparse(url.strip())
-        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        if not isinstance(url, str):
+            raise ValueError("Only valid HTTP or HTTPS URLs can be opened.")
+        url = url.strip()
+        try:
+            parsed = urlparse(url)
+            valid = (
+                parsed.scheme in {"http", "https"}
+                and bool(parsed.hostname)
+                and parsed.username is None
+                and parsed.password is None
+                and not any(character.isspace() for character in url)
+            )
+            parsed.port  # Validate that an optional port is numeric and in range.
+        except ValueError:
+            valid = False
+        if not valid:
             raise ValueError("Only valid HTTP or HTTPS URLs can be opened.")
         webbrowser.open(url)
         return {"action": "url", "url": url}

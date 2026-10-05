@@ -1,9 +1,16 @@
 from app.memory.conversation import conversation_memory
+from app.memory.context import ContextBuilder
+from app.models.chat import ChatMessage
 from app.tools.router import tool_router
 from app.tools.weather import weather_tool
 
 
 class Assistant:
+    def __init__(self):
+        self.context_builder = ContextBuilder(
+            max_messages=conversation_memory.max_messages
+        )
+
     def process(
         self,
         conversation_id: str,
@@ -42,9 +49,12 @@ class Assistant:
                 }
 
         else:
-            response = self._generate_response(
-                message=message,
+            context = self.context_builder.build(
                 previous_messages=previous_messages,
+                current_user_message=message,
+            )
+            response = self._generate_response(
+                context=context,
             )
 
             metadata = {
@@ -70,17 +80,18 @@ class Assistant:
 
     def _generate_response(
         self,
-        message: str,
-        previous_messages: list,
+        context: list[ChatMessage],
     ) -> str:
+        message = context[-1].content
         lower_message = message.lower().strip()
 
         if "what did i just say" in lower_message:
-            if previous_messages:
+            previous_context = context[:-1]
+            if previous_context:
                 last_user_message = next(
                     (
                         item
-                        for item in reversed(previous_messages)
+                        for item in reversed(previous_context)
                         if item.role == "user"
                     ),
                     None,
@@ -140,26 +151,42 @@ class Assistant:
         if tool_result["tool"] == "reminders":
             result = tool_result["result"]
             if isinstance(result, list):
-                return f"You have {len(result)} pending reminder(s)."
-            if "completed" in result:
+                if not result:
+                    return "You have no pending reminders."
+                lines = [f"You have {len(result)} pending reminder(s):"]
+                for reminder in result:
+                    due = f" (due {reminder['due_at'].replace('T', ' ')})" if reminder.get("due_at") else ""
+                    lines.append(f"{reminder['id']}. {reminder['text']}{due}")
+                return "\n".join(lines)
+            if "completed" in result and "text" not in result:
                 return "Reminder marked complete." if result["completed"] else "I couldn't find that reminder."
-            due = f" for {result['due_at']}" if result.get("due_at") else ""
+            due = f" for {result['due_at'].replace('T', ' ')}" if result.get("due_at") else ""
             return f"Reminder created{due}: {result['text']}"
 
         if tool_result["tool"] == "notes":
             result = tool_result["result"]
             if isinstance(result, list):
-                return f"Found {len(result)} note(s)."
+                if not result:
+                    return "You don't have any notes yet."
+                lines = [f"Your notes ({len(result)}):"]
+                lines.extend(f"{note['id']}. {note['text']}" for note in result)
+                return "\n".join(lines)
             return "Note saved."
 
         if tool_result["tool"] == "schedule":
             result = tool_result["result"]
-            return f"You have {len(result)} event(s) on {tool_result['date']}."
+            day = tool_result["date"]
+            if not result:
+                return f"You have no events scheduled for {day}."
+            lines = [f"You have {len(result)} event(s) on {day}:"]
+            lines.extend(f"{event['starts_at']} — {event['title']}" for event in result)
+            return "\n".join(lines)
 
         if tool_result["tool"] == "workspace":
             result = tool_result["result"]
             if result["action"] == "application":
-                return f"Opened {result['name']}."
+                app_names = {"notepad": "Notepad", "vs code": "VS Code", "chrome": "Chrome"}
+                return f"{app_names[result['name']]} opened successfully."
             if result["action"] == "url":
                 return f"Opened {result['url']}."
             return "Workspace opened."
