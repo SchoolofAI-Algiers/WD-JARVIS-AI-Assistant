@@ -82,7 +82,9 @@ class SentenceTransformerEmbedder:
     @property
     def dim(self) -> int:
         """Actual vector size"""
-        native = self.model.get_sentence_embedding_dimension()
+        model = self.model
+        get_dim = getattr(model, "get_embedding_dimension", None) or model.get_sentence_embedding_dimension
+        native = get_dim()
         if native is not None:
             native_dim = int(native)
             if self._dim is None:

@@ -57,6 +57,8 @@ def _split_sections(body: str) -> list[tuple[str | None, str]]:
     for line in body.splitlines():
         if line.strip().startswith("```"):
             in_code = not in_code
+        if not in_code and line.startswith("# "):
+            continue  
         m = None if in_code else H2_RE.match(line)
         if m:
             sections.append((m.group(1).strip(), []))
