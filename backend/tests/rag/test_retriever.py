@@ -78,7 +78,7 @@ HARD_UNKNOWN = [
 
 
 def test_retriever():
-    settings = replace(get_settings(), collection="SoaiChunkTest")
+    settings = replace(get_settings(), collection="SoaiChunk")
     embedder = build_embedder(settings)
     store = WeaviateStore(settings)
     try:
