@@ -31,6 +31,13 @@ typing-extensions==4.16.0
 typing-inspection==0.4.4
 urllib3==2.8.0
 uvicorn==0.53.0
+weaviate-client>=4.16,<5
+sentence-transformers>=5.1
+transformers>=4.56       
+torch>=2.2
+numpy>=1.26
+pyyaml>=6.0
+pytest>=8
 websockets==16.1.1
 # Voice layer
 pydantic>=2.0
