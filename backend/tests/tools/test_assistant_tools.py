@@ -304,14 +304,11 @@ def test_schedule_router_parses_explicit_date_and_rejects_invalid_input():
 
 def test_workspace_allowlist_paths_and_system_calls_are_mocked(monkeypatch):
     workspace_root = Path(__file__).resolve().parents[3]
-
-    # Resolve the temp path before mocking os.name so the test
-    # remains compatible with Linux test environments.
     temp_dir = Path(tempfile.gettempdir()).resolve()
 
     tool = WorkspaceTool(workspace_root)
 
-    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setattr("app.tools.workspace._is_windows", lambda: True)
 
     popen = Mock()
     startfile = Mock()

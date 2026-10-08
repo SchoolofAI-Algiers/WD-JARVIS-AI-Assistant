@@ -5,6 +5,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
 class WorkspaceTool:
     APPS = {
         "notepad": ["notepad.exe"],
@@ -17,7 +21,7 @@ class WorkspaceTool:
 
     def open_application(self, name: str) -> dict:
         key = name.strip().lower()
-        if key not in self.APPS or os.name != "nt":
+        if key not in self.APPS or not _is_windows():
             raise ValueError("Application is not allowed or unavailable on this platform.")
         subprocess.Popen(self.APPS[key], shell=False)
         return {"action": "application", "name": key}
@@ -26,7 +30,7 @@ class WorkspaceTool:
         target = (self.workspace / relative_path).resolve()
         if not target.is_relative_to(self.workspace) or not target.exists() or not target.is_dir():
             raise ValueError("Workspace path is invalid or outside the project workspace.")
-        if os.name != "nt":
+        if not _is_windows():
             raise ValueError("Opening workspace folders is available on Windows only.")
         os.startfile(str(target))
         return {"action": "workspace", "path": str(target)}
