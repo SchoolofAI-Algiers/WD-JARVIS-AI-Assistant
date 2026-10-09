@@ -12,9 +12,9 @@ from google.genai import types
 from groq import Groq
 from groq.types.chat import ChatCompletionMessageParam
 
-PRIMARY_MODEL = "gemini-3.8-flash"
+PRIMARY_MODEL = "openai/gpt-oss-120b"
 FIRST_FALLBACK_MODEL = "gemini-3.5-flash-lite"
-SECOND_FALLBACK_MODEL = "openai/gpt-oss-120b"
+SECOND_FALLBACK_MODEL = "gemini-3.8-flash"
 
 
 class LLMError(RuntimeError):
