@@ -35,8 +35,10 @@ class LLMService:
         self,
         conversation_id: str,
         message: str,
+        retrieved_context: str = "",
     ) -> str:
-        """Generate a response using the conversation's short-term history."""
+        """Generate a response using the conversation's short-term history
+        and, for SOAI questions, the passages found by the RAG."""
         if not conversation_id or not conversation_id.strip():
             raise ValueError("conversation_id must not be empty")
 
@@ -51,6 +53,7 @@ class LLMService:
             prompt,
             system_instruction=build_system_prompt(
                 current_datetime=datetime.now().astimezone().isoformat(),
+                retrieved_context=retrieved_context,
                 conversation_history=history_text,
             ),
         )

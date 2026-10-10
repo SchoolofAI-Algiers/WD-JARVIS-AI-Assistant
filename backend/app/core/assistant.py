@@ -1,19 +1,33 @@
+import logging
+
 from app.core.llm.client import LLMError
 from app.core.llm.service import LLMService, llm_service
 from app.memory.conversation import conversation_memory
+from app.memory.context import ContextBuilder
+from app.models.chat import ChatMessage
+from app.rag.retriever import format_context, get_sources, retrieve
 from app.tools.router import tool_router
 from app.tools.weather import weather_tool
+
+logger = logging.getLogger(__name__)
 
 
 class Assistant:
     def __init__(self, llm: LLMService | None = None):
         self.llm = llm or llm_service
+        self.context_builder = ContextBuilder(
+            max_messages=conversation_memory.max_messages
+        )
 
     def process(
         self,
         conversation_id: str,
         message: str,
     ) -> dict:
+        previous_messages = conversation_memory.get_messages(
+            conversation_id
+        )
+
         tool_name = tool_router.detect_tool(message)
 
         if tool_name:
@@ -43,15 +57,31 @@ class Assistant:
                 }
 
         else:
+            context = self.context_builder.build(
+                previous_messages=previous_messages,
+                current_user_message=message,
+            )
+
+            chunks = self._search_knowledge(message)
+
             try:
                 response = self.llm.generate_response(
                     conversation_id=conversation_id,
                     message=message,
+                    retrieved_context=format_context(chunks) if chunks else "",
                 )
-                metadata = {"type": "llm"}
-            except LLMError as error:
-                response = f"I couldn't generate a response: {error}"
-                metadata = {"type": "error", "source": "llm"}
+
+                metadata = {"type": "rag", "sources": get_sources(chunks)} if chunks else {"type": "llm"}
+
+            except LLMError:
+                logger.exception("LLM call failed")
+                response = self._generate_response(
+                    context=context,
+                )
+
+                metadata = {
+                    "type": "mock",
+                }
 
         conversation_memory.add_message(
             conversation_id=conversation_id,
@@ -69,6 +99,46 @@ class Assistant:
             "message": response,
             "metadata": metadata,
         }
+
+    def _search_knowledge(self, message: str) -> list:
+        """Returns [] if nothing relevant (or if Weaviate is unreachable)."""
+        try:
+            return retrieve(message)
+        except Exception:
+            logger.exception("RAG search failed")
+            return []
+
+    def _generate_response(
+        self,
+        context: list[ChatMessage],
+    ) -> str:
+        message = context[-1].content
+        lower_message = message.lower().strip()
+
+        if "what did i just say" in lower_message:
+            previous_context = context[:-1]
+            if previous_context:
+                last_user_message = next(
+                    (
+                        item
+                        for item in reversed(previous_context)
+                        if item.role == "user"
+                    ),
+                    None,
+                )
+
+                if last_user_message:
+                    return (
+                        f'You previously said: '
+                        f'"{last_user_message.content}"'
+                    )
+
+            return "I don't have a previous message to refer to."
+
+        if lower_message in {"hello", "hi", "hey"}:
+            return "Hello. How can I assist you?"
+
+        return f"JARVIS received: {message}"
 
     def _format_tool_response(
         self,
