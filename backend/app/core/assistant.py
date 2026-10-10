@@ -1,6 +1,7 @@
 import logging
 
-from app.core.llm import llm_service
+from app.core.llm.client import LLMError
+from app.core.llm.service import LLMService, llm_service
 from app.memory.conversation import conversation_memory
 from app.memory.context import ContextBuilder
 from app.models.chat import ChatMessage
@@ -12,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 
 class Assistant:
-    def __init__(self):
+    def __init__(self, llm: LLMService | None = None):
+        self.llm = llm or llm_service
         self.context_builder = ContextBuilder(
             max_messages=conversation_memory.max_messages
         )
@@ -63,7 +65,7 @@ class Assistant:
             chunks = self._search_knowledge(message)
 
             try:
-                response = llm_service.generate_response(
+                response = self.llm.generate_response(
                     conversation_id=conversation_id,
                     message=message,
                     retrieved_context=format_context(chunks) if chunks else "",
@@ -71,7 +73,7 @@ class Assistant:
 
                 metadata = {"type": "rag", "sources": get_sources(chunks)} if chunks else {"type": "llm"}
 
-            except Exception:
+            except LLMError:
                 logger.exception("LLM call failed")
                 response = self._generate_response(
                     context=context,
