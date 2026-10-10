@@ -57,8 +57,8 @@ class LLMClient:
         prompt: str,
         *,
         system_instruction: str | None = None,
-        temperature: float = 0.7,
-        max_output_tokens: int = 1024,
+        temperature: float = 0.5,
+        max_output_tokens: int = 4096,
     ) -> str:
         """Return a text response, trying providers in configured order."""
         if not prompt or not prompt.strip():
