@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from app.core.llm.client import LLMClient
-from app.core.llm.prompts import SYSTEM_PROMPT, build_user_prompt
+from app.core.llm.prompts import build_system_prompt, build_user_prompt
 from app.memory.conversation import ConversationMemory, conversation_memory
 
 
@@ -34,8 +34,10 @@ class LLMService:
         self,
         conversation_id: str,
         message: str,
+        retrieved_context: str = "",
     ) -> str:
-        """Generate a response using the conversation's short-term history."""
+        """Generate a response using the conversation's short-term history
+        and, for SOAI questions, the passages found by the RAG."""
         if not conversation_id or not conversation_id.strip():
             raise ValueError("conversation_id must not be empty")
 
@@ -45,7 +47,7 @@ class LLMService:
         )
         return self._client.generate(
             prompt,
-            system_instruction=SYSTEM_PROMPT,
+            system_instruction=build_system_prompt(retrieved_context),
         )
 
 

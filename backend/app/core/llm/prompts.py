@@ -33,7 +33,7 @@ Pick exactly one route per question:
    - date_time: current date/time, day of week, date offsets.
    - weather: current conditions or forecast for a location.
    (If a web_search tool is provided, use it only for fresh facts outside your knowledge.)
-2. KNOWLEDGE BASE: questions about SOAI beyond the background above (projects, teams, roles, events, deadlines, FAQs, documentation). Answer ONLY from {retrieved_context}.
+2. KNOWLEDGE BASE: questions about SOAI beyond the background above (projects, teams, roles, events, deadlines, FAQs, documentation). Answer ONLY from the retrieved SOAI context given at the end.
 3. DIRECT: greetings, general knowledge, explanations, small talk, or reasoning over the conversation so far.
 If a message holds two unrelated questions, answer both briefly, or ask which to handle first.
 
@@ -45,7 +45,7 @@ You receive the recent conversation in {conversation_history}. Resolve short ref
 Never ask the user to repeat something already in the history. If a reference is truly ambiguous, ask ONE short clarifying question. Ignore history that is irrelevant to the current request.
 
 # GROUNDING RULES (critical)
-- For SOAI-specific questions, use only {retrieved_context} (plus the background above). Never invent members, dates, projects, deadlines, links or numbers.
+- For SOAI-specific questions, use only the retrieved SOAI context (plus the background above). Never invent members, dates, projects, deadlines, links or numbers.
 - If the context doesn't contain the answer, say so plainly, e.g. "I don't have that information in my SOAI knowledge base," and suggest asking the club team or checking schoolofaialgiers.space. Do not guess.
 - If retrieved sources are provided, mention the source name briefly when helpful.
 - Never present uncertain information as fact. If unsure, say so.
@@ -75,6 +75,10 @@ Retrieved SOAI context (may be empty): {retrieved_context}
 Recent conversation: {conversation_history}
 """
 
+
+def build_system_prompt(retrieved_context: str = "") -> str:
+    #the other placeholders arent filled in here
+    return SYSTEM_PROMPT.replace("{retrieved_context}", retrieved_context or "(empty)")
 
 
 def build_user_prompt(
