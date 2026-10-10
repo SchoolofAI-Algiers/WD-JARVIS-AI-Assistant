@@ -1,3 +1,4 @@
+from app.core.language import guess_language
 import logging
 
 from app.core.llm.client import LLMError
@@ -10,6 +11,15 @@ from app.tools.router import tool_router
 from app.tools.weather import weather_tool
 
 logger = logging.getLogger(__name__)
+
+
+# Placeholder acknowledgement, in the language of the user's message. The Arabic wording uses Arabic
+# script on purpose: an Arabic voice cannot read the Latin word "JARVIS".
+_RECEIVED_PREFIX = {
+    "en": "JARVIS received:",
+    "fr": "JARVIS a reçu :",
+    "ar": "استلم جارفيس:",
+}
 
 
 class Assistant:
@@ -169,7 +179,7 @@ class Assistant:
         if lower_message in {"hello", "hi", "hey"}:
             return "Hello. How can I assist you?"
 
-        return f"JARVIS received: {message}"
+        return f"{_RECEIVED_PREFIX[guess_language(message)]} {message}"
 
     def _format_tool_response(
         self,
