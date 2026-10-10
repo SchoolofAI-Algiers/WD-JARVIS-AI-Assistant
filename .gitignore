@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+backend/data/*.sqlite3
 
 # Conda / virtual environments
 .venv/
