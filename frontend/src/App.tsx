@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { sendMessage } from "./services/api/chat";
+import type { VoiceTurnResponse } from "./services/api/voice";
+import { useVoiceTurn } from "./hooks/UseVoiceTurn";
 
 import { ChatWindow } from "./components/chat/ChatWindow";
 import { ChatInput } from "./components/chat/ChatInput";
@@ -30,13 +32,59 @@ function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] =
     useState<AssistantStatusType>("idle");
-  const [listening, setListening] = useState(false);
+  // One id per conversation, shared by text and voice turns. Only
+  // "New conversation" replaces it.
+  const [conversationId, setConversationId] = useState(() =>
+    crypto.randomUUID()
+  );
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
   const [error, setError] = useState(false);
   const [lastMessage, setLastMessage] = useState<string | null>(
     null
   );
+
+  const addAssistantMessage = (content: string) => {
+    setMessages((previous) => [
+      ...previous,
+      {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content,
+        timestamp: new Date(),
+      },
+    ]);
+  };
+
+  const handleVoiceTurn = (result: VoiceTurnResponse) => {
+    setError(false);
+    setSources([]);
+    setActiveTool(null);
+
+    const heard = result.transcript?.text;
+
+    if (heard) {
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: crypto.randomUUID(),
+          role: "user",
+          content: heard,
+          timestamp: new Date(),
+        },
+      ]);
+    }
+
+    // On a friendly failure reply_text already holds the message to show.
+    addAssistantMessage(result.reply_text);
+  };
+
+  const voice = useVoiceTurn({
+    conversationId,
+    onStatus: setStatus,
+    onTurn: handleVoiceTurn,
+    onProblem: addAssistantMessage,
+  });
 
   const sendToAssistant = async (content: string) => {
     setError(false);
@@ -71,7 +119,7 @@ function App() {
 
     try {
       const response = await sendMessage({
-        conversation_id: "test-123",
+        conversation_id: conversationId,
         message: content,
       });
 
@@ -106,6 +154,9 @@ function App() {
 
       setStatus("idle");
 
+      // Typed message: answer out loud as well (voice turns are already spoken by the hook).
+      void voice.speak(response.message);
+
       if (detectedTool) {
         setTimeout(() => {
           setActiveTool(null);
@@ -122,6 +173,8 @@ function App() {
   };
 
   const handleSend = async (content: string) => {
+    voice.stopPlayback();
+
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -142,17 +195,11 @@ function App() {
     await sendToAssistant(lastMessage);
   };
 
-  const handleVoice = () => {
-    const nextListening = !listening;
-
-    setListening(nextListening);
-    setStatus(nextListening ? "listening" : "idle");
-  };
-
   const handleNewChat = () => {
+    voice.cancel();
+    setConversationId(crypto.randomUUID());
     setMessages([]);
     setStatus("idle");
-    setListening(false);
     setActiveTool(null);
     setSources([]);
     setError(false);
@@ -201,7 +248,7 @@ function App() {
 
           <SourceList sources={sources} />
 
-          <VoiceVisualizer active={listening} />
+          <VoiceVisualizer active={voice.listening} />
         </section>
 
         <footer className="chat-footer">
@@ -211,8 +258,8 @@ function App() {
           />
 
           <VoiceButton
-            listening={listening}
-            onClick={handleVoice}
+            listening={voice.listening}
+            onClick={voice.toggle}
           />
         </footer>
       </main>
