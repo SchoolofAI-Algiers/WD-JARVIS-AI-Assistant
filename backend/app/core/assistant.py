@@ -1,6 +1,16 @@
+from app.core.language import guess_language
 from app.memory.conversation import conversation_memory
 from app.tools.router import tool_router
 from app.tools.weather import weather_tool
+
+
+# Placeholder acknowledgement, in the language of the user's message. The Arabic wording uses Arabic
+# script on purpose: an Arabic voice cannot read the Latin word "JARVIS".
+_RECEIVED_PREFIX = {
+    "en": "JARVIS received:",
+    "fr": "JARVIS a reçu :",
+    "ar": "استلم جارفيس:",
+}
 
 
 class Assistant:
@@ -97,7 +107,7 @@ class Assistant:
         if lower_message in {"hello", "hi", "hey"}:
             return "Hello. How can I assist you?"
 
-        return f"JARVIS received: {message}"
+        return f"{_RECEIVED_PREFIX[guess_language(message)]} {message}"
 
     def _format_tool_response(
         self,

@@ -47,6 +47,11 @@ async def warmup_voice() -> None:
     await get_voice_pipeline().warmup()
 
 
+async def warmup_voice_tts() -> None:
+    """Preload the speech voices (called in the background at server start)."""
+    await get_voice_pipeline().warmup_tts()
+
+
 class SpeakRequest(BaseModel):
     text: str = Field(min_length=1)
     language: Optional[str] = None  # "en" / "fr" / "ar"; detected from the text when omitted
