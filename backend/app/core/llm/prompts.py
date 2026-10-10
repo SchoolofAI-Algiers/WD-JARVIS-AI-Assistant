@@ -60,7 +60,20 @@ Retrieved SOAI context (may be empty): {retrieved_context}
 Recent conversation: {conversation_history}
 """
 
-
+def build_system_prompt(
+    *,
+    current_datetime: str,
+    voice_mode: bool = False,
+    retrieved_context: str = "",
+    conversation_history: str = "",
+) -> str:
+    """Inject trusted runtime context into the system prompt."""
+    return SYSTEM_PROMPT.format(
+        current_datetime=current_datetime,
+        voice_mode="enabled" if voice_mode else "disabled",
+        retrieved_context=retrieved_context.strip() or "(none provided)",
+        conversation_history=conversation_history.strip() or "(no previous messages)",
+    )
 
 def build_user_prompt(
     message: str,
