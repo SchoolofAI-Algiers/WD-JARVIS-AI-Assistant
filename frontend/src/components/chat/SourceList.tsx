@@ -1,41 +1,32 @@
-interface Source {
-  title: string;
-  url?: string;
-}
+import type { Source } from "../../types/chat";
+import { BookIcon } from "../layout/Icons";
 
 interface Props {
   sources: Source[];
 }
 
+/** SOAI knowledge base passages used for an answer (metadata.sources from the backend). */
 export function SourceList({ sources }: Props) {
-  if (sources.length === 0) {
-    return null;
-  }
+  if (sources.length === 0) return null;
 
   return (
     <div className="source-list">
-      <div className="source-title">SOURCES</div>
+      <div className="source-title">SOAI KNOWLEDGE BASE</div>
 
       <div className="source-items">
-        {sources.map((source, index) => (
-          <div
-            key={`${source.title}-${index}`}
+        {sources.map((source) => (
+          <span
             className="source"
+            key={source.id}
+            title={
+              source.similarity !== undefined
+                ? `${source.title} · match ${Math.round(source.similarity * 100)}%`
+                : source.title
+            }
           >
-            <span className="source-icon">◈</span>
-
-            {source.url ? (
-              <a
-                href={source.url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {source.title}
-              </a>
-            ) : (
-              <span>{source.title}</span>
-            )}
-          </div>
+            <BookIcon />
+            {source.section ?? source.title}
+          </span>
         ))}
       </div>
     </div>

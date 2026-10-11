@@ -1,3 +1,5 @@
+import { MicIcon, StopIcon } from "../layout/Icons";
+
 interface Props {
   listening: boolean;
   onClick: () => void;
@@ -10,7 +12,7 @@ export function VoiceButton({ listening, onClick }: Props) {
       onClick={onClick}
       aria-label={listening ? "Stop listening" : "Start listening"}
     >
-      {listening ? "■" : "🎙"}
+      {listening ? <StopIcon /> : <MicIcon />}
     </button>
   );
 }

@@ -1,46 +1,48 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
+
+import { SendIcon, SparkIcon } from "../layout/Icons";
 
 interface Props {
-  onSend: (message: string) => void;
+  onSend: (content: string) => void;
   disabled?: boolean;
 }
 
-export function ChatInput({ onSend, disabled }: Props) {
+export function ChatInput({ onSend, disabled = false }: Props) {
   const [value, setValue] = useState("");
 
-  const handleSubmit = () => {
-    if (!value.trim() || disabled) {
-      return;
-    }
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
 
-    onSend(value.trim());
+    const content = value.trim();
+    if (!content || disabled) return;
+
+    onSend(content);
     setValue("");
   };
 
   return (
-    <div className="chat-input">
+    <form className="chat-input" onSubmit={handleSubmit}>
+      <span className="chat-input-spark">
+        <SparkIcon />
+      </span>
+
       <input
         value={value}
         onChange={(event) => setValue(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            handleSubmit();
-          }
-        }}
-        placeholder={
-          disabled
-            ? "JARVIS is processing..."
-            : "Ask JARVIS..."
-        }
-        disabled={disabled}
+        id="chat-input-field"
+        placeholder="Ask JARVIS..."
+        aria-label="Message"
+        autoFocus
       />
 
       <button
-        onClick={handleSubmit}
+        type="submit"
+        className="send-button"
         disabled={disabled || !value.trim()}
+        aria-label="Send"
       >
-        {disabled ? "..." : "Send"}
+        <SendIcon />
       </button>
-    </div>
+    </form>
   );
 }

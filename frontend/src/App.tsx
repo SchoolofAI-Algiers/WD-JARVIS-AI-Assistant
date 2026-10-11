@@ -1,121 +1,100 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
+
 import { sendMessage } from "./services/api/chat";
-import type { VoiceTurnResponse } from "./services/api/voice";
-import { useVoiceTurn } from "./hooks/UseVoiceTurn";
 
 import { ChatWindow } from "./components/chat/ChatWindow";
 import { ChatInput } from "./components/chat/ChatInput";
 import { EmptyChat } from "./components/chat/EmptyChat";
 import { ConversationSidebar } from "./components/chat/ConversationSidebar";
-import { SourceList } from "./components/chat/SourceList";
 import { ErrorMessage } from "./components/chat/ErrorMessage";
 
-import {
-  AssistantStatus,
-  type AssistantStatusType,
-} from "./components/status/AssistantStatus";
+import type { AssistantStatusType } from "./components/status/AssistantStatus";
 
 import { VoiceButton } from "./components/voice/VoiceButton";
 import { VoiceVisualizer } from "./components/voice/VoiceVisualizer";
-import { ToolActivity } from "./components/tools/ToolActivity";
 
-import type { ChatMessage } from "./types/chat";
+import { OptionalImage } from "./components/layout/OptionalImage";
+import { Chamfer } from "./components/hud/Chamfer";
+import { Clock } from "./components/hud/Clock";
+import { BootScreen } from "./components/hud/BootScreen";
+import { Ripples, type Ripple } from "./components/hud/Ripples";
+import { BeamOverlay, PlatformOverlay, ReactorOverlay } from "./components/hud/ReactorOverlay";
+import {
+  CoreInfo,
+  LocationList,
+  QuoteCard,
+  StatsList,
+  SystemPanel,
+  type SessionStats,
+} from "./components/hud/SidePanels";
+
+import { IMAGES } from "./config/images";
+import { scene } from "./utils/place";
+import { playSound, setSoundEnabled } from "./utils/sound";
+import { loadSettings, saveSettings, type Settings } from "./utils/settings";
+import type { ChatMessage, Conversation } from "./types/chat";
 
 import "./App.css";
 
-interface Source {
-  title: string;
-  url?: string;
+function createConversation(): Conversation {
+  return {
+    id: crypto.randomUUID(),
+    title: "New conversation",
+    messages: [],
+    updatedAt: new Date(),
+  };
 }
 
 function App() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [status, setStatus] =
-    useState<AssistantStatusType>("idle");
-  // One id per conversation, shared by text and voice turns. Only
-  // "New conversation" replaces it.
-  const [conversationId, setConversationId] = useState(() =>
-    crypto.randomUUID()
-  );
-  const [activeTool, setActiveTool] = useState<string | null>(null);
-  const [sources, setSources] = useState<Source[]>([]);
-  const [error, setError] = useState(false);
-  const [lastMessage, setLastMessage] = useState<string | null>(
-    null
-  );
-
-  const addAssistantMessage = (content: string) => {
-    setMessages((previous) => [
-      ...previous,
-      {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content,
-        timestamp: new Date(),
-      },
-    ]);
-  };
-
-  const handleVoiceTurn = (result: VoiceTurnResponse) => {
-    setError(false);
-    setSources([]);
-    setActiveTool(null);
-
-    const heard = result.transcript?.text;
-
-    if (heard) {
-      setMessages((previous) => [
-        ...previous,
-        {
-          id: crypto.randomUUID(),
-          role: "user",
-          content: heard,
-          timestamp: new Date(),
-        },
-      ]);
-    }
-
-    // On a friendly failure reply_text already holds the message to show.
-    addAssistantMessage(result.reply_text);
-  };
-
-  const voice = useVoiceTurn({
-    conversationId,
-    onStatus: setStatus,
-    onTurn: handleVoiceTurn,
-    onProblem: addAssistantMessage,
+  const [conversations, setConversations] = useState<Conversation[]>(() => [
+    createConversation(),
+  ]);
+  const [activeId, setActiveId] = useState(conversations[0].id);
+  const [status, setStatus] = useState<AssistantStatusType>("idle");
+  const [listening, setListening] = useState(false);
+  const [failed, setFailed] = useState<{ conversationId: string; content: string } | null>(null);
+  const [session, setSession] = useState<SessionStats>({
+    messages: 0,
+    lastReplyMs: null,
+    lastMode: null,
   });
+  const [settings, setSettings] = useState<Settings>(loadSettings);
+  const [booting, setBooting] = useState(settings.boot);
+  const [ripples, setRipples] = useState<Ripple[]>([]);
+  const stageRef = useRef<HTMLDivElement>(null);
 
-  const sendToAssistant = async (content: string) => {
-    setError(false);
-    setLastMessage(content);
-    setSources([]);
-    setActiveTool(null);
+  const active = conversations.find((c) => c.id === activeId) ?? conversations[0];
+  const isProcessing = status === "thinking" || status === "tool_call";
 
-    const lowerMessage = content.toLowerCase();
+  useEffect(() => {
+    setSoundEnabled(settings.sound);
+    saveSettings(settings);
+  }, [settings]);
 
-    let detectedTool: string | null = null;
+  /* ---------------- chat ---------------- */
 
-    /*
-     * Temporary frontend simulation.
-     * This will later be replaced by backend metadata.
-     */
-    if (
-      lowerMessage.includes("calculate") ||
-      lowerMessage.includes("×") ||
-      lowerMessage.includes("multiply")
-    ) {
-      detectedTool = "CALCULATOR";
-    } else if (lowerMessage.includes("weather")) {
-      detectedTool = "WEATHER";
-    }
+  const addMessage = (conversationId: string, message: ChatMessage) => {
+    setConversations((previous) =>
+      previous.map((conversation) =>
+        conversation.id !== conversationId
+          ? conversation
+          : {
+              ...conversation,
+              title:
+                conversation.messages.length === 0 && message.role === "user"
+                  ? message.content.slice(0, 32)
+                  : conversation.title,
+              messages: [...conversation.messages, message],
+              updatedAt: new Date(),
+            }
+      )
+    );
+  };
 
-    if (detectedTool) {
-      setActiveTool(detectedTool);
-      setStatus("tool_call");
-    } else {
-      setStatus("thinking");
-    }
+  const sendToAssistant = async (conversationId: string, content: string) => {
+    setFailed(null);
+    setStatus("thinking");
+    const start = performance.now();
 
     try {
       const response = await sendMessage({
@@ -123,146 +102,239 @@ function App() {
         message: content,
       });
 
-      const assistantMessage: ChatMessage = {
+      const { metadata } = response;
+
+      setSession((previous) => ({
+        messages: previous.messages + 1,
+        lastReplyMs: performance.now() - start,
+        lastMode: metadata.type,
+      }));
+
+      addMessage(conversationId, {
         id: crypto.randomUUID(),
         role: "assistant",
         content: response.message,
         timestamp: new Date(),
-      };
+        sources: metadata.type === "rag" ? metadata.sources ?? [] : undefined,
+        tool: metadata.type === "tool" && metadata.tool ? String(metadata.tool) : undefined,
+      });
 
-      setMessages((previous) => [
-        ...previous,
-        assistantMessage,
-      ]);
-
-      /*
-       * Temporary RAG simulation.
-       */
-      if (
-        lowerMessage.includes("soai") ||
-        lowerMessage.includes("what is soai")
-      ) {
-        setSources([
-          {
-            title: "SOAI Overview",
-          },
-          {
-            title: "SOAI Architecture",
-          },
-        ]);
-      }
-
+      playSound("reply");
       setStatus("idle");
-
-      // Typed message: answer out loud as well (voice turns are already spoken by the hook).
-      void voice.speak(response.message);
-
-      if (detectedTool) {
-        setTimeout(() => {
-          setActiveTool(null);
-        }, 1500);
-      }
     } catch (requestError) {
       console.error(requestError);
-
+      playSound("error");
       setStatus("error");
-      setActiveTool(null);
-      setSources([]);
-      setError(true);
+      setFailed({ conversationId, content });
     }
   };
 
   const handleSend = async (content: string) => {
-    voice.stopPlayback();
+    if (isProcessing) return;
 
-    const userMessage: ChatMessage = {
+    playSound("send");
+    addMessage(active.id, {
       id: crypto.randomUUID(),
       role: "user",
       content,
       timestamp: new Date(),
-    };
+    });
 
-    setMessages((previous) => [...previous, userMessage]);
-
-    await sendToAssistant(content);
+    await sendToAssistant(active.id, content);
   };
 
   const handleRetry = async () => {
-    if (!lastMessage) {
-      return;
+    if (failed) {
+      await sendToAssistant(failed.conversationId, failed.content);
     }
+  };
 
-    await sendToAssistant(lastMessage);
+  const handleVoice = () => {
+    const nextListening = !listening;
+
+    playSound("click");
+    setListening(nextListening);
+    setStatus(nextListening ? "listening" : "idle");
   };
 
   const handleNewChat = () => {
-    voice.cancel();
-    setConversationId(crypto.randomUUID());
-    setMessages([]);
+    playSound("click");
+
+    // Reuse the current conversation if it's still empty.
+    if (active.messages.length === 0) return;
+
+    const conversation = createConversation();
+    setConversations((previous) => [conversation, ...previous]);
+    setActiveId(conversation.id);
     setStatus("idle");
-    setActiveTool(null);
-    setSources([]);
-    setError(false);
-    setLastMessage(null);
+    setListening(false);
+    setFailed(null);
   };
 
-  const isProcessing =
-    status === "thinking" ||
-    status === "tool_call";
+  const handleSelect = (id: string) => {
+    playSound("click");
+    setActiveId(id);
+    setFailed(null);
+    if (status === "error") setStatus("idle");
+  };
+
+  /* ---------------- keyboard shortcuts ---------------- */
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const typing = (event.target as HTMLElement).tagName === "INPUT";
+
+      if (event.key === "/" && !typing) {
+        event.preventDefault();
+        document.getElementById("chat-input-field")?.focus();
+      } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        handleNewChat();
+      } else if (event.key === "Escape") {
+        (document.activeElement as HTMLElement | null)?.blur();
+        if (listening) handleVoice();
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  /* ---------------- scene effects ---------------- */
+
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const box = stage.getBoundingClientRect();
+    stage.style.setProperty("--cx", `${event.clientX - box.left}px`);
+    stage.style.setProperty("--cy", `${event.clientY - box.top}px`);
+  };
+
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    const stage = stageRef.current;
+    if (!stage || (event.target as HTMLElement).closest("input, .settings-menu")) return;
+
+    const box = stage.getBoundingClientRect();
+    const ripple = { id: Date.now() + Math.random(), x: event.clientX - box.left, y: event.clientY - box.top };
+
+    setRipples((current) => [...current.slice(-6), ripple]);
+    setTimeout(() => setRipples((current) => current.filter((r) => r.id !== ripple.id)), 900);
+  };
+
+  const empty = active.messages.length === 0;
+  const showError = failed && failed.conversationId === active.id;
 
   return (
-    <div className="app-shell">
-      <ConversationSidebar onNewChat={handleNewChat} />
+    <div
+      className="app"
+      ref={stageRef}
+      data-status={status}
+      data-motion={settings.motion ? "on" : "off"}
+      onPointerMove={handlePointerMove}
+      onPointerDown={handlePointerDown}
+    >
+      {/* the picture, filling the screen ("cover"), and what is pinned to it */}
+      <div className="scene">
+        <img className="scene-bg" src={IMAGES.background} alt="" draggable={false} />
+        <img className="scene-sharp" src={IMAGES.background} alt="" draggable={false} />
+        <div className="scene-haze" />
 
-      <main className="jarvis">
-        <header className="jarvis-header">
-          <div>
-            <h1 className="jarvis-title">J.A.R.V.I.S.</h1>
+        <BeamOverlay status={status} />
+        <PlatformOverlay status={status} />
+        <ReactorOverlay status={status} onActivate={() => playSound("pulse")} />
 
-            <span className="jarvis-subtitle">
-              JUST A RATHER VERY INTELLIGENT SYSTEM
-            </span>
-          </div>
-
-          <AssistantStatus
-            status={status}
-            tool={activeTool ?? undefined}
-          />
-        </header>
-
-        <section className="assistant-area">
-          {activeTool && (
-            <ToolActivity
-              tool={activeTool}
-              description="Processing your request..."
-            />
-          )}
-
-          {error ? (
-            <ErrorMessage onRetry={handleRetry} />
-          ) : messages.length === 0 ? (
+        {empty ? (
+          <>
             <EmptyChat />
-          ) : (
-            <ChatWindow messages={messages} />
-          )}
-
-          <SourceList sources={sources} />
-
-          <VoiceVisualizer active={voice.listening} />
-        </section>
-
-        <footer className="chat-footer">
-          <ChatInput
-            onSend={handleSend}
-            disabled={isProcessing}
+            {showError && (
+              <div className="floating-error" style={scene(780, 610, 520)}>
+                <ErrorMessage onRetry={handleRetry} />
+              </div>
+            )}
+          </>
+        ) : (
+          <ChatWindow
+            messages={active.messages}
+            status={status}
+            footer={showError ? <ErrorMessage onRetry={handleRetry} /> : null}
           />
+        )}
 
-          <VoiceButton
-            listening={voice.listening}
-            onClick={voice.toggle}
-          />
-        </footer>
-      </main>
+        <VoiceVisualizer active={listening} />
+      </div>
+
+      <div className="cursor-light" aria-hidden="true" />
+
+      {/* HUD anchored to the screen edges */}
+      <ConversationSidebar
+        conversations={conversations}
+        activeId={active.id}
+        online={status !== "error"}
+        settings={settings}
+        onSettingsChange={setSettings}
+        onNewChat={handleNewChat}
+        onSelect={handleSelect}
+      />
+
+      <header className="stage-header">
+        <OptionalImage
+          src={IMAGES.headerLogo}
+          className="header-logo"
+          fallback={<span className="org-badge">SOAI</span>}
+        />
+        <span className="brand-divider" />
+        <div>
+          <h1 className="stage-title">J.A.R.V.I.S.</h1>
+          <span className="stage-subtitle">JUST A RATHER VERY INTELLIGENT SYSTEM</span>
+        </div>
+      </header>
+
+      <div className="org-block">
+        <OptionalImage
+          src={IMAGES.orgLogo}
+          className="org-logo"
+          fallback={
+            <div className="org-mark">
+              <strong>SCHOOL OF AI</strong>
+              <span>ALGIERS · BUILDING THE FUTURE WITH AI</span>
+            </div>
+          }
+        />
+        <Clock />
+      </div>
+
+      <div className="hud-left">
+        <SystemPanel status={status} onPrompt={handleSend} disabled={isProcessing} />
+        <CoreInfo busy={isProcessing} session={session} />
+      </div>
+
+      <div className="hud-right">
+        <QuoteCard />
+        <StatsList busy={isProcessing} status={status} />
+        <LocationList />
+      </div>
+
+      <footer className="stage-footer">
+        <Chamfer className="input-frame" corners="tl bl tr br" cut={22}>
+          <ChatInput onSend={handleSend} disabled={isProcessing} />
+        </Chamfer>
+        <VoiceButton listening={listening} onClick={handleVoice} />
+      </footer>
+
+      <div className="stage-signature">
+        SOAI · J.A.R.V.I.S.
+        <span className="signature-stripes">
+          <i />
+          <i />
+          <i />
+          <i />
+        </span>
+      </div>
+
+      <Ripples ripples={ripples} />
+
+      {booting && <BootScreen onDone={() => setBooting(false)} />}
     </div>
   );
 }

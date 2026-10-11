@@ -1,10 +1,9 @@
 export type AssistantStatusType =
   | "idle"
   | "listening"
-  | "thinking"
-  | "retrieving"
-  | "tool_call"
   | "speaking"
+  | "thinking"
+  | "tool_call"
   | "error";
 
 interface Props {
@@ -12,25 +11,23 @@ interface Props {
   tool?: string;
 }
 
-const statusText: Record<AssistantStatusType, string> = {
-  idle: "READY",
-  listening: "LISTENING",
-  thinking: "THINKING",
-  retrieving: "RETRIEVING KNOWLEDGE",
-  tool_call: "USING TOOL",
-  speaking: "SPEAKING",
-  error: "ERROR",
+const LABELS: Record<AssistantStatusType, [string, string]> = {
+  idle: ["SYSTEM", "ONLINE"],
+  listening: ["SYSTEM", "LISTENING"],
+  speaking: ["SYSTEM", "SPEAKING"],
+  thinking: ["SYSTEM", "PROCESSING"],
+  tool_call: ["RUNNING", "TOOL"],
+  error: ["SYSTEM", "OFFLINE"],
 };
 
 export function AssistantStatus({ status, tool }: Props) {
-  return (
-    <div className={`assistant-status ${status}`}>
-      <span className="status-dot" />
+  const [label, value] = LABELS[status];
 
-      <span>
-        {statusText[status]}
-        {status === "tool_call" && tool ? ` · ${tool}` : ""}
-      </span>
+  return (
+    <div className={`assistant-status ${status}`} role="status">
+      <span className="status-dot" />
+      <span>{label}</span>
+      <strong>{status === "tool_call" && tool ? tool.toUpperCase() : value}</strong>
     </div>
   );
 }
