@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useVoiceTurn } from "./hooks/UseVoiceTurn";
 
 import { sendMessage } from "./services/api/chat";
 
@@ -51,7 +52,7 @@ function App() {
   ]);
   const [activeId, setActiveId] = useState(conversations[0].id);
   const [status, setStatus] = useState<AssistantStatusType>("idle");
-  const [listening, setListening] = useState(false);
+  // const [listening, setListening] = useState(false);
   const [failed, setFailed] = useState<{ conversationId: string; content: string } | null>(null);
   const [session, setSession] = useState<SessionStats>({
     messages: 0,
@@ -65,6 +66,54 @@ function App() {
 
   const active = conversations.find((c) => c.id === activeId) ?? conversations[0];
   const isProcessing = status === "thinking" || status === "tool_call";
+
+  const voice = useVoiceTurn({
+  conversationId: active.id,
+
+  onStatus: setStatus,
+
+  onTurn: (result) => {
+    if (!result.ok) {
+      setFailed({
+        conversationId: active.id,
+        content: result.error?.message ?? "Voice interaction failed.",
+      });
+      return;
+    }
+
+    // Add the user's transcribed speech to the conversation.
+    if (result.transcript?.text) {
+      addMessage(active.id, {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: result.transcript.text,
+        timestamp: new Date(),
+      });
+    }
+
+    // Add the assistant's reply to the conversation.
+    if (result.reply_text) {
+      addMessage(active.id, {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: result.reply_text,
+        timestamp: new Date(),
+      });
+    }
+  },
+
+  onProblem: (message) => {
+    console.error("[JARVIS] Voice problem:", message);
+
+    setFailed({
+      conversationId: active.id,
+      content: message,
+    });
+  },
+});
+
+
+const listening = voice.listening;
 
   useEffect(() => {
     setSoundEnabled(settings.sound);
@@ -150,12 +199,9 @@ function App() {
   };
 
   const handleVoice = () => {
-    const nextListening = !listening;
-
-    playSound("click");
-    setListening(nextListening);
-    setStatus(nextListening ? "listening" : "idle");
-  };
+  playSound("click");
+  void voice.toggle();
+};
 
   const handleNewChat = () => {
     playSound("click");
@@ -167,7 +213,7 @@ function App() {
     setConversations((previous) => [conversation, ...previous]);
     setActiveId(conversation.id);
     setStatus("idle");
-    setListening(false);
+    voice.cancel();
     setFailed(null);
   };
 

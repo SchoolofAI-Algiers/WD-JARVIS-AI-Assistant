@@ -35,11 +35,20 @@ export function playSound(name: SoundName) {
   if (!enabled) return;
 
   try {
+    // Create the audio context only when a sound is requested.
     context ??= new AudioContext();
-    if (context.state === "suspended") void context.resume();
-  } catch {
+
+    // Resume it if the browser suspended it.
+    if (context.state === "suspended") {
+      void context.resume().catch((error) => {
+        console.warn("HUD sound could not resume:", error);
+      });
+    }
+  } catch (error) {
+    console.warn("HUD sound is unavailable:", error);
     return;
   }
+
 
   switch (name) {
     case "click":
