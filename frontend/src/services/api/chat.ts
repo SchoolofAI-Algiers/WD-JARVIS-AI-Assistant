@@ -1,3 +1,5 @@
+import type { Source } from "../../types/chat";
+
 export interface ChatRequest {
   conversation_id: string;
   message: string;
@@ -8,12 +10,16 @@ export interface ChatResponse {
   status: string;
   message: string;
   metadata: {
+    /** "rag" | "llm" | "tool" | "error" | "mock" */
     type: string;
+    sources?: Source[];
+    tool?: string;
     [key: string]: unknown;
   };
 }
 
-const API_URL = "http://localhost:8000/api/v1";
+export const SERVER_URL = "http://localhost:8000";
+const API_URL = `${SERVER_URL}/api/v1`;
 
 export async function sendMessage(
   request: ChatRequest
