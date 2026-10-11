@@ -6,6 +6,6 @@ export const IMAGES = {
   background: "/assets/jarvis-bg.jpg", // main scene (1824 x 862)
 
   // optional
-  headerLogo: "/images/header-logo.png", // top left, next to the title
-  orgLogo: "/images/org-logo.png", // top right
+  headerLogo: "/images/soai-logo3.png", // top left, next to the title
+  orgLogo: "/images/soai-logo2.png", // top right
 };

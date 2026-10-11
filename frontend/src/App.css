@@ -938,7 +938,7 @@ kbd {
 }
 
 .org-logo {
-  height: calc(var(--u) * 52);
+  height: calc(var(--u) * 75);
   width: auto;
   object-fit: contain;
 }
