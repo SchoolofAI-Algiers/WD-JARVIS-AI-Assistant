@@ -1,6 +1,7 @@
 export type AssistantStatusType =
   | "idle"
   | "listening"
+  | "speaking"
   | "thinking"
   | "tool_call"
   | "error";
@@ -13,6 +14,7 @@ interface Props {
 const LABELS: Record<AssistantStatusType, [string, string]> = {
   idle: ["SYSTEM", "ONLINE"],
   listening: ["SYSTEM", "LISTENING"],
+  speaking: ["SYSTEM", "SPEAKING"],
   thinking: ["SYSTEM", "PROCESSING"],
   tool_call: ["RUNNING", "TOOL"],
   error: ["SYSTEM", "OFFLINE"],

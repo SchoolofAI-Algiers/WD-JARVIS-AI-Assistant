@@ -1,6 +1,8 @@
+from app.core.language import guess_language
 import logging
 
-from app.core.llm import llm_service
+from app.core.llm.client import LLMError
+from app.core.llm.service import LLMService, llm_service
 from app.memory.conversation import conversation_memory
 from app.memory.context import ContextBuilder
 from app.models.chat import ChatMessage
@@ -11,8 +13,18 @@ from app.tools.weather import weather_tool
 logger = logging.getLogger(__name__)
 
 
+# Placeholder acknowledgement, in the language of the user's message. The Arabic wording uses Arabic
+# script on purpose: an Arabic voice cannot read the Latin word "JARVIS".
+_RECEIVED_PREFIX = {
+    "en": "JARVIS received:",
+    "fr": "JARVIS a reçu :",
+    "ar": "استلم جارفيس:",
+}
+
+
 class Assistant:
-    def __init__(self):
+    def __init__(self, llm: LLMService | None = None):
+        self.llm = llm or llm_service
         self.context_builder = ContextBuilder(
             max_messages=conversation_memory.max_messages
         )
@@ -45,6 +57,8 @@ class Assistant:
                 }
 
             except Exception as error:
+                logger.exception("Tool execution failed")
+
                 response = (
                     f"I couldn't process that request: {error}"
                 )
@@ -60,27 +74,54 @@ class Assistant:
                 current_user_message=message,
             )
 
+            # Search the knowledge base for relevant information.
             chunks = self._search_knowledge(message)
 
-            try:
-                response = llm_service.generate_response(
-                    conversation_id=conversation_id,
-                    message=message,
-                    retrieved_context=format_context(chunks) if chunks else "",
-                )
-
-                metadata = {"type": "rag", "sources": get_sources(chunks)} if chunks else {"type": "llm"}
-
-            except Exception:
-                logger.exception("LLM call failed")
+            # Handle conversation recall directly from memory.
+            # This avoids depending on the LLM to recall exact messages.
+            if "what did i just say" in message.lower().strip():
                 response = self._generate_response(
                     context=context,
                 )
 
                 metadata = {
-                    "type": "mock",
+                    "type": "memory",
                 }
 
+            else:
+                try:
+                    response = self.llm.generate_response(
+                        conversation_id=conversation_id,
+                        message=message,
+                        retrieved_context=(
+                            format_context(chunks)
+                            if chunks
+                            else ""
+                        ),
+                    )
+
+                    if chunks:
+                        metadata = {
+                            "type": "rag",
+                            "sources": get_sources(chunks),
+                        }
+                    else:
+                        metadata = {
+                            "type": "llm",
+                        }
+
+                except LLMError:
+                    logger.exception("LLM call failed")
+
+                    response = self._generate_response(
+                        context=context,
+                    )
+
+                    metadata = {
+                        "type": "mock",
+                    }
+
+        # Save both messages after generating the response.
         conversation_memory.add_message(
             conversation_id=conversation_id,
             role="user",
@@ -99,7 +140,7 @@ class Assistant:
         }
 
     def _search_knowledge(self, message: str) -> list:
-        """Returns [] if nothing relevant (or if Weaviate is unreachable)."""
+        """Return an empty list if retrieval fails or finds nothing."""
         try:
             return retrieve(message)
         except Exception:
@@ -113,8 +154,10 @@ class Assistant:
         message = context[-1].content
         lower_message = message.lower().strip()
 
+        # Recall the most recent user message before the current one.
         if "what did i just say" in lower_message:
             previous_context = context[:-1]
+
             if previous_context:
                 last_user_message = next(
                     (
@@ -136,13 +179,15 @@ class Assistant:
         if lower_message in {"hello", "hi", "hey"}:
             return "Hello. How can I assist you?"
 
-        return f"JARVIS received: {message}"
+        return f"{_RECEIVED_PREFIX[guess_language(message)]} {message}"
 
     def _format_tool_response(
         self,
         tool_result: dict,
     ) -> str:
-        if tool_result["tool"] == "calculator":
+        tool = tool_result["tool"]
+
+        if tool == "calculator":
             expression = tool_result["expression"]
             result = tool_result["result"]
 
@@ -151,7 +196,7 @@ class Assistant:
 
             return f"{expression} = {result}"
 
-        if tool_result["tool"] == "datetime":
+        if tool == "datetime":
             datetime_result = tool_result["result"]
 
             return (
@@ -161,7 +206,7 @@ class Assistant:
                 f"{datetime_result['time']}."
             )
 
-        if tool_result["tool"] == "weather":
+        if tool == "weather":
             weather = tool_result["result"]
 
             description = weather_tool.describe_weather_code(
@@ -176,47 +221,110 @@ class Assistant:
                 f"wind {weather['wind_speed']} km/h."
             )
 
-        if tool_result["tool"] == "reminders":
+        if tool == "reminders":
             result = tool_result["result"]
+
             if isinstance(result, list):
                 if not result:
                     return "You have no pending reminders."
-                lines = [f"You have {len(result)} pending reminder(s):"]
-                for reminder in result:
-                    due = f" (due {reminder['due_at'].replace('T', ' ')})" if reminder.get("due_at") else ""
-                    lines.append(f"{reminder['id']}. {reminder['text']}{due}")
-                return "\n".join(lines)
-            if "completed" in result and "text" not in result:
-                return "Reminder marked complete." if result["completed"] else "I couldn't find that reminder."
-            due = f" for {result['due_at'].replace('T', ' ')}" if result.get("due_at") else ""
-            return f"Reminder created{due}: {result['text']}"
 
-        if tool_result["tool"] == "notes":
+                lines = [
+                    f"You have {len(result)} pending reminder(s):"
+                ]
+
+                for reminder in result:
+                    due_at = reminder.get("due_at")
+
+                    due = (
+                        f" (due {due_at.replace('T', ' ')})"
+                        if due_at
+                        else ""
+                    )
+
+                    lines.append(
+                        f"{reminder['id']}. "
+                        f"{reminder['text']}{due}"
+                    )
+
+                return "\n".join(lines)
+
+            if "completed" in result and "text" not in result:
+                if result["completed"]:
+                    return "Reminder marked complete."
+
+                return "I couldn't find that reminder."
+
+            due_at = result.get("due_at")
+
+            due = (
+                f" for {due_at.replace('T', ' ')}"
+                if due_at
+                else ""
+            )
+
+            return (
+                f"Reminder created{due}: "
+                f"{result['text']}"
+            )
+
+        if tool == "notes":
             result = tool_result["result"]
+
             if isinstance(result, list):
                 if not result:
                     return "You don't have any notes yet."
-                lines = [f"Your notes ({len(result)}):"]
-                lines.extend(f"{note['id']}. {note['text']}" for note in result)
+
+                lines = [
+                    f"Your notes ({len(result)}):"
+                ]
+
+                lines.extend(
+                    f"{note['id']}. {note['text']}"
+                    for note in result
+                )
+
                 return "\n".join(lines)
+
             return "Note saved."
 
-        if tool_result["tool"] == "schedule":
+        if tool == "schedule":
             result = tool_result["result"]
             day = tool_result["date"]
+
             if not result:
                 return f"You have no events scheduled for {day}."
-            lines = [f"You have {len(result)} event(s) on {day}:"]
-            lines.extend(f"{event['starts_at']} — {event['title']}" for event in result)
+
+            lines = [
+                f"You have {len(result)} event(s) on {day}:"
+            ]
+
+            lines.extend(
+                f"{event['starts_at']} — {event['title']}"
+                for event in result
+            )
+
             return "\n".join(lines)
 
-        if tool_result["tool"] == "workspace":
+        if tool == "workspace":
             result = tool_result["result"]
+
             if result["action"] == "application":
-                app_names = {"notepad": "Notepad", "vs code": "VS Code", "chrome": "Chrome"}
-                return f"{app_names[result['name']]} opened successfully."
+                app_names = {
+                    "notepad": "Notepad",
+                    "vs code": "VS Code",
+                    "chrome": "Chrome",
+                }
+
+                app_name = app_names.get(
+                    result["name"],
+                    result["name"],
+                )
+
+                return f"{app_name} opened successfully."
+
             if result["action"] == "url":
                 return f"Opened {result['url']}."
+
             return "Workspace opened."
 
         return "The tool completed successfully."

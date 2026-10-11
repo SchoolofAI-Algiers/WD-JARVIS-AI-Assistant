@@ -12,9 +12,9 @@ from google.genai import types
 from groq import Groq
 from groq.types.chat import ChatCompletionMessageParam
 
-PRIMARY_MODEL = "gemini-3.8-flash"
+PRIMARY_MODEL = "openai/gpt-oss-120b"
 FIRST_FALLBACK_MODEL = "gemini-3.5-flash-lite"
-SECOND_FALLBACK_MODEL = "openai/gpt-oss-120b"
+SECOND_FALLBACK_MODEL = "gemini-3.8-flash"
 
 
 class LLMError(RuntimeError):
@@ -57,8 +57,8 @@ class LLMClient:
         prompt: str,
         *,
         system_instruction: str | None = None,
-        temperature: float = 0.7,
-        max_output_tokens: int = 1024,
+        temperature: float = 0.5,
+        max_output_tokens: int = 4096,
     ) -> str:
         """Return a text response, trying providers in configured order."""
         if not prompt or not prompt.strip():

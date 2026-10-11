@@ -140,6 +140,16 @@ class VoicePipeline:
         except Exception as exc:
             logger.warning("voice warm-up failed (will retry lazily): %s", exc)
 
+    async def warmup_tts(self) -> None:
+        """Preload slow-to-load speech models (Piper) so the first spoken reply is not delayed."""
+        warm = getattr(self.tts, "warmup", None)
+        if not callable(warm):
+            return
+        try:
+            await asyncio.to_thread(warm)
+        except Exception as exc:
+            logger.warning("TTS warm-up failed (will retry lazily): %s", exc)
+
     def health(self) -> dict[str, Any]:
         """Report package availability separately from local model readiness."""
         return {

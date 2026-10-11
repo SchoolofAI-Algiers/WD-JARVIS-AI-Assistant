@@ -13,32 +13,51 @@ def conversation_id():
     conversation_memory.clear(value)
 
 
-def test_assistant_passes_history_and_current_message_to_generation(
-    conversation_id, monkeypatch
-):
-    conversation_memory.add_message(conversation_id, "user", "Earlier question")
-    conversation_memory.add_message(conversation_id, "assistant", "Earlier answer")
+def test_assistant_passes_history_and_current_message_to_generation(conversation_id, monkeypatch):
+    conversation_memory.add_message(
+        conversation_id, "user", "Earlier question"
+    )
+    conversation_memory.add_message(
+        conversation_id, "assistant", "Earlier answer"
+    )
+
     assistant = Assistant()
     captured = {}
 
-    def generate(context):
-        captured["context"] = context
+    def generate_response(
+        conversation_id,
+        message,
+        retrieved_context="",
+    ):
+        captured["conversation_id"] = conversation_id
+        captured["message"] = message
+        captured["retrieved_context"] = retrieved_context
         return "Generated response"
 
-    monkeypatch.setattr(assistant, "_generate_response", generate)
+    monkeypatch.setattr(
+        assistant.llm,
+        "generate_response",
+        generate_response,
+    )
 
-    result = assistant.process(conversation_id, "Current question")
+    result = assistant.process(
+        conversation_id,
+        "Current question",
+    )
 
     assert result["message"] == "Generated response"
-    context = captured["context"]
-    assert [(message.role, message.content) for message in context] == [
-        ("user", "Earlier question"),
-        ("assistant", "Earlier answer"),
-        ("user", "Current question"),
-    ]
 
-    stored_messages = conversation_memory.get_messages(conversation_id)
-    assert [(message.role, message.content) for message in stored_messages] == [
+    assert captured["conversation_id"] == conversation_id
+    assert captured["message"] == "Current question"
+
+    stored_messages = conversation_memory.get_messages(
+        conversation_id
+    )
+
+    assert [
+        (message.role, message.content)
+        for message in stored_messages
+    ] == [
         ("user", "Earlier question"),
         ("assistant", "Earlier answer"),
         ("user", "Current question"),

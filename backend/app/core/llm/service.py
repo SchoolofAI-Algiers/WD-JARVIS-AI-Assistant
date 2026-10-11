@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol
 
 from app.core.llm.client import LLMClient
@@ -41,13 +42,20 @@ class LLMService:
         if not conversation_id or not conversation_id.strip():
             raise ValueError("conversation_id must not be empty")
 
-        prompt = build_user_prompt(
-            message,
-            self._memory.get_messages(conversation_id),
+        history = self._memory.get_messages(conversation_id)
+        prompt = build_user_prompt(message, history)
+        history_text = "\n".join(
+            f"{item.role.upper()}: {item.content}"
+            for item in history
+            if item.content.strip()
         )
         return self._client.generate(
             prompt,
-            system_instruction=build_system_prompt(retrieved_context),
+            system_instruction=build_system_prompt(
+                current_datetime=datetime.now().astimezone().isoformat(),
+                retrieved_context=retrieved_context,
+                conversation_history=history_text,
+            ),
         )
 
 
